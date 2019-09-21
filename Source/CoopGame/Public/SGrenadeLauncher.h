@@ -17,11 +17,12 @@ class COOPGAME_API ASGrenadeLauncher : public ASWeapon
 	GENERATED_BODY()
 	
 protected:
-	void Fire() override;
 
 	/** Projectile class to spawn */
 	UPROPERTY(EditDefaultsOnly, Category = "Projectile")
 	TSubclassOf<ASGrenade> ProjectileClass;
-	
+
+public:
+	void Fire() override;
 	
 };
