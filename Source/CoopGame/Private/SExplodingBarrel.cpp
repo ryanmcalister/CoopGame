@@ -7,6 +7,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "DrawDebugHelpers.h"
+#include "Net/UnrealNetwork.h"
 
 
 // Sets default values
@@ -24,6 +25,10 @@ ASExplodingBarrel::ASExplodingBarrel()
 	HealthComp = CreateDefaultSubobject<USHealthComponent>(TEXT("HealthComp"));
 
 	bExploded = false;
+
+	SetReplicates(true);
+
+	BlastRadius = 200.f;
 }
 
 // Called when the game starts or when spawned
@@ -31,15 +36,16 @@ void ASExplodingBarrel::BeginPlay()
 {
 	Super::BeginPlay();
 
+
 	HealthComp->OnHealthChanged.AddDynamic(this, &ASExplodingBarrel::OnHealthChanged);
 	
 }
 
 void ASExplodingBarrel::OnHealthChanged(USHealthComponent* OwningHealthComp, float Health, float HealthDelta, const class UDamageType* DamageType, class AController* InstigatedBy, AActor* DamageCauser)
 {
-	UE_LOG(LogTemp, Log, TEXT("Barrel damage %.0f"), Health);
 	if (Health <= 0.0f && !bExploded)
 	{
+
 		auto World = GetWorld();
 		if (!World) return;
 		auto Location = GetActorLocation();
@@ -47,25 +53,13 @@ void ASExplodingBarrel::OnHealthChanged(USHealthComponent* OwningHealthComp, flo
 		// Explode!!
 		bExploded = true;
 
-		// change material
-		Exploded();
-						
-		// particle effect
-		// play an explosion effect
-		if (ExplosionEffect) {
-			UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ExplosionEffect, GetActorLocation(), GetActorRotation());
-		}
-
-		// launch barrel upwards
-		CollisionComp->AddImpulse(FVector(0, 0, 40000.0f));
-
-		const float BlastRadius = 200.0f;
+		Explode();
 
 		// radial force damage
 		TArray<AActor*> ignored;
 		ignored.Push(this);
 		UGameplayStatics::ApplyRadialDamage(World, 100.0f, Location, BlastRadius, BarrelDamageType, ignored, this, DamageCauser->GetInstigatorController(), true);
-		DrawDebugSphere(World, Location, BlastRadius, 16, FColor::Cyan, true, 3);
+		
 		
 		// apply radial impulse
 		TArray<AActor*> hits;
@@ -90,4 +84,41 @@ void ASExplodingBarrel::OnHealthChanged(USHealthComponent* OwningHealthComp, flo
 	}
 }
 
+void ASExplodingBarrel::Explode()
+{
+	auto World = GetWorld();
+	if (!World) return;
+	auto Location = GetActorLocation();
+
+	// change material
+	Exploded();
+
+	// particle effect
+	// play an explosion effect
+	if (ExplosionEffect) {
+		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ExplosionEffect, GetActorLocation(), GetActorRotation());
+	}
+
+	// launch barrel upwards
+	CollisionComp->AddImpulse(FVector(0, 0, 40000.0f));
+
+	DrawDebugSphere(World, Location, BlastRadius, 16, FColor::Cyan, true, 3);
+
+}
+
+void ASExplodingBarrel::OnRep_Exploded()
+{
+	if (bExploded)
+	{
+		Explode();
+
+	}
+}
+
+void ASExplodingBarrel::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(ASExplodingBarrel, bExploded);
+}
 
